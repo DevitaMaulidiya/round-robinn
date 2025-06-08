@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Round Robin Scheduling</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 15px;
+    }
+    th, td {
+      border: 1px solid #555;
+      padding: 8px;
+      text-align: center;
+    }
+    .gantt span {
+      display: inline-block;
+      background: #4CAF50;
+      color: white;
+      margin: 2px;
+      padding: 5px 10px;
+      border-radius: 4px;
+    }
+    input, button {
+      margin: 5px;
+      padding: 5px;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Simulasi Round Robin Scheduling</h2>
+
+<label>Quantum (TQ): <input type="number" id="quantum" value="2"></label>
+<label>Context Switch (CS): <input type="number" id="cs" value="1"></label><br><br>
+
+<h3>Tambahkan Proses</h3>
+<input type="text" id="pname" placeholder="Nama Proses (A, B...)">
+<input type="number" id="arrival" placeholder="Arrival Time">
+<input type="number" id="burst" placeholder="Burst Time">
+<button onclick="addProcess()">Tambah</button>
+
+<table id="processTable">
+  <tr>
+    <th>Nama</th>
+    <th>Arrival Time</th>
+    <th>Burst Time</th>
+  </tr>
+</table>
+
+<button onclick="simulate()">Simulasikan</button>
+
+<h3>Gantt Chart</h3>
+<div class="gantt" id="gantt"></div>
+
+<h3>Hasil Perhitungan</h3>
+<table id="resultTable">
+  <tr>
+    <th>Job</th>
+    <th>Arrival Time</th>
+    <th>Burst Time</th>
+    <th>Waiting Time</th>
+    <th>Turnaround Time</th>
+  </tr>
+</table>
+<p id="averages"></p>
+
+<script>
+  const processes = [];
+
+  function addProcess() {
+    const name = document.getElementById("pname").value;
+    const arrival = parseInt(document.getElementById("arrival").value);
+    const burst = parseInt(document.getElementById("burst").value);
+    if (!name || isNaN(arrival) || isNaN(burst)) {
+      alert("Lengkapi semua field proses!");
+      return;
+    }
+
+    processes.push({ name, arrivalTime: arrival, burstTime: burst, remainingTime: burst, completionTime: 0 });
+    
+    const table = document.getElementById("processTable");
+    const row = table.insertRow();
+    row.insertCell(0).textContent = name;
+    row.insertCell(1).textContent = arrival;
+    row.insertCell(2).textContent = burst;
+
+    document.getElementById("pname").value = "";
+    document.getElementById("arrival").value = "";
+    document.getElementById("burst").value = "";
+  }
+
+  function simulate() {
+    const quantum = parseInt(document.getElementById("quantum").value);
+    const contextSwitch = parseInt(document.getElementById("cs").value);
+    if (isNaN(quantum) || isNaN(contextSwitch)) {
+      alert("Quantum dan Context Switch harus angka!");
+      return;
+    }
+
+    let time = 0;
+    const queue = [];
+    const completed = [];
+    const gantt = [];
+    const allProcesses = JSON.parse(JSON.stringify(processes)); // Deep copy
+
+    while (completed.length < allProcesses.length) {
+      allProcesses.forEach(p => {
+        if (p.arrivalTime <= time && !queue.includes(p) && !completed.includes(p) && p.remainingTime > 0) {
+          queue.push(p);
+        }
+      });
+
+      if (queue.length === 0) {
+        gantt.push("idle");
+        time++;
+        continue;
+      }
+
+      const current = queue.shift();
+      const execTime = Math.min(quantum, current.remainingTime);
+      gantt.push(current.name);
+      time += execTime;
+      current.remainingTime -= execTime;
+
+      allProcesses.forEach(p => {
+        if (p.arrivalTime > time - execTime && p.arrivalTime <= time &&
+            !queue.includes(p) && !completed.includes(p) && p.remainingTime > 0) {
+          queue.push(p);
+        }
+      });
+
+      if (current.remainingTime > 0) {
+        queue.push(current);
+      } else {
+        current.completionTime = time;
+        completed.push(current);
+      }
+
+      time += contextSwitch;
+    }
+
+    // Show Gantt Chart
+    const ganttDiv = document.getElementById("gantt");
+    ganttDiv.innerHTML = gantt.map(p => `<span>${p}</span>`).join("");
+
+    // Show result table
+    const resultTable = document.getElementById("resultTable");
+    // Clear previous results
+    resultTable.innerHTML = `
+      <tr>
+        <th>Job</th>
+        <th>Arrival Time</th>
+        <th>Burst Time</th>
+        <th>Waiting Time</th>
+        <th>Turnaround Time</th>
+      </tr>`;
+
+    let totalWait = 0, totalTurn = 0;
+    allProcesses.forEach(p => {
+      const turnaround = p.completionTime - p.arrivalTime;
+      const waiting = turnaround - p.burstTime;
+      totalWait += waiting;
+      totalTurn += turnaround;
+
+      const row = resultTable.insertRow();
+      row.insertCell(0).textContent = p.name;
+      row.insertCell(1).textContent = p.arrivalTime;
+      row.insertCell(2).textContent = p.burstTime;
+      row.insertCell(3).textContent = waiting;
+      row.insertCell(4).textContent = turnaround;
+    });
+
+    const avg = document.getElementById("averages");
+    avg.innerHTML = `
+      <strong>Rata-rata Waiting Time:</strong> ${(totalWait / allProcesses.length).toFixed(2)}<br>
+      <strong>Rata-rata Turnaround Time:</strong> ${(totalTurn / allProcesses.length).toFixed(2)}
+    `;
+  }
+</script>
+
+</body>
+</html>
